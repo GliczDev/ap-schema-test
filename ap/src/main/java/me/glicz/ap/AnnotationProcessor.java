@@ -1,9 +1,15 @@
 package me.glicz.ap;
 
 import net.strokkur.jap.code.CodeGenUtil;
+import net.strokkur.jap.code.classmodel.CodeMethod;
+import net.strokkur.jap.code.classmodel.CodeParameterDefinition;
 import net.strokkur.jap.code.classmodel.CodeRecord;
 import net.strokkur.jap.code.classmodel.builder.RecordBuilder;
-import net.strokkur.jap.code.convert.ConvertToAnnotation;
+import net.strokkur.jap.code.convert.ConvertToExpression;
+import net.strokkur.jap.code.expression.Expressions;
+import net.strokkur.jap.code.statement.Statements;
+import net.strokkur.jap.code.type.CodeClassType;
+import net.strokkur.jap.code.type.CodeTypes;
 import net.strokkur.jap.code.util.Modifiers;
 import net.strokkur.jap.source.SourceMapProcessor;
 import net.strokkur.jap.source.SourceMapUtil;
@@ -43,14 +49,27 @@ public class AnnotationProcessor extends AbstractProcessor implements SourceMapP
             }
 
             String schemaFqn = schema.classType().fullyQualifiedName();
+            CodeClassType classType = CodeTypes.of(schemaFqn.substring(0, schemaFqn.length() - "Schema".length()));
 
-            RecordBuilder recordBuilder = CodeRecord.builder(schemaFqn.substring(0, schemaFqn.length() - "Schema".length()))
+            RecordBuilder recordBuilder = CodeRecord.builder(classType)
                     .addModifiers(Modifiers.PUBLIC)
                     .implementsInterfaces(schema);
 
             for (SourceMethod method : schema.methods()) {
-                recordBuilder.addComponent(
-                        method.returnType(), method.name(), method.annotations().toArray(ConvertToAnnotation[]::new)
+                recordBuilder.addComponent(method.returnType(), method.name());
+
+                CodeParameterDefinition param1 = CodeParameterDefinition.of(
+                        method.returnType(), method.name()
+                );
+
+                recordBuilder.addMethods(CodeMethod.builder("with" + Character.toUpperCase(method.name().charAt(0)) + method.name().substring(1))
+                        .addModifiers(Modifiers.PUBLIC)
+                        .setReturnType(classType)
+                        .addParameters(param1)
+                        .addCode(Statements.returnStmt(classType.ctor(schema.methods().stream()
+                                .map(m -> Expressions.fieldAccess(m.name()))
+                                .toArray(ConvertToExpression[]::new)
+                        )))
                 );
             }
 
